@@ -23,6 +23,7 @@ if uploaded_file is not None:
                 df["Toplam İş Süresi (Dakika)"] = pd.to_numeric(df["Toplam İş Süresi (Dakika)"], errors='coerce').fillna(0)
 
                 # Siparişleri Birleştir (Modeli Küçült)
+                # Lamet Durumu sütununu raporda bozulma olmasın diye tutuyoruz ama kısıtlarda kullanmayacağız
                 groupby_cols = ["Tel Kalınlığı", "Zone Bilgisi", "Lamet Durumu", "En", "Boy", "Yükseklik", "Sıralama Alanı (En * Boy)"]
                 df_agg = df.groupby(groupby_cols, as_index=False).agg({
                     "Bileşen Kodu": "first",
@@ -33,11 +34,10 @@ if uploaded_file is not None:
                 jobs = df_agg.to_dict('records')
                 N = len(jobs)
 
-                # Setup Matrisi Fonksiyonu
+                # Setup Matrisi Fonksiyonu (Lamet Setup Cezası Kaldırıldı!)
                 def calculate_setup(job_i, job_j):
                     setup = 0
                     if job_i['Zone Bilgisi'] != job_j['Zone Bilgisi']: setup += 8
-                    if job_i['Lamet Durumu'] != job_j['Lamet Durumu']: setup += 2
                     if str(job_i['Tel Kalınlığı']) != str(job_j['Tel Kalınlığı']): setup += 5 
                     return setup
 
@@ -64,13 +64,14 @@ if uploaded_file is not None:
 
                 prob += C[0] == 0
 
+                # Ebat (Hacim) Kesin Kısıtı (Lamet Kuralı Kaldırıldı!)
                 for i in V[1:]:
                     for j in V[1:]:
                         if i != j:
                             job_i, job_j = jobs[i-1], jobs[j-1]
+                            # Sadece Tel Kalınlığı ve Zone Bilgisi aynıysa ebat büyükten küçüğe akmalıdır
                             if (job_i['Tel Kalınlığı'] == job_j['Tel Kalınlığı'] and 
-                                job_i['Zone Bilgisi'] == job_j['Zone Bilgisi'] and 
-                                job_i['Lamet Durumu'] == job_j['Lamet Durumu']):
+                                job_i['Zone Bilgisi'] == job_j['Zone Bilgisi']):
                                 if job_j['Sıralama Alanı (En * Boy)'] > job_i['Sıralama Alanı (En * Boy)']:
                                     prob += x[i][j] == 0
 
@@ -97,9 +98,9 @@ if uploaded_file is not None:
                     df_sonuc["Başlangıç Zamanı (Dk)"] = baslangic_zamanlari
                     df_sonuc["Bitiş Zamanı (Dk)"] = bitis_zamanlari
                     
-                    # Takvim ve Vardiya Ataması (Yeni Gece-Gündüz Düzeni)
+                    # Takvim ve Vardiya Ataması (Gece Başlangıçlı 5340 Dk Döngü)
                     def vardiya_bul(sure):
-                        if sure <= 0: return "1. Hafta", "Pazartesi", "Gece" # Gün Gece ile başlıyor
+                        if sure <= 0: return "1. Hafta", "Pazartesi", "Gece"
                         
                         t = sure - 0.001 
                         hafta_no = int(t // 5340) + 1
@@ -110,7 +111,6 @@ if uploaded_file is not None:
                             gun_endeksi = int(hafta_ici_dk // 980)
                             gun_ici_dk = hafta_ici_dk % 980
                             
-                            # Yeni Mesai Kurgusu: İlk 440dk Gece, Sonraki 540dk Gündüz
                             if gun_ici_dk < 440:
                                 vardiya = "Gece"
                                 gun = gunler[gun_endeksi]
@@ -118,13 +118,12 @@ if uploaded_file is not None:
                                 vardiya = "Gündüz"
                                 gun = gunler[gun_endeksi]
                         else:
-                            # 4900 sonrası Cuma gecesinden Cumartesi sabahına sarkan vardiya
                             vardiya = "Gece"
                             gun = "Cumartesi (Cuma'dan bağlayan)"
                             
                         return f"{hafta_no}. Hafta", gun, vardiya
 
-                    # Başlangıç ve Bitiş için Fonksiyonu Ayrı Ayrı Uygulama
+                    # Başlangıç ve Bitiş için Fonksiyonu Uygulama
                     baslangic_bilgileri = df_sonuc["Başlangıç Zamanı (Dk)"].apply(lambda x: pd.Series(vardiya_bul(x)))
                     bitis_bilgileri = df_sonuc["Bitiş Zamanı (Dk)"].apply(lambda x: pd.Series(vardiya_bul(x)))
 
