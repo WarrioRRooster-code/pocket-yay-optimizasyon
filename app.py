@@ -89,11 +89,18 @@ if uploaded_file is not None:
                                 
                     sirali_isler = [jobs[i-1] for i in rota]
                     df_sonuc = pd.DataFrame(sirali_isler)
-                    df_sonuc["Kümülatif Zaman (C_i)"] = [pulp.value(C[i]) for i in rota]
                     
-                    # Takvim ve Vardiya Ataması (5340 Dakikalık Döngü)
+                    # Başlangıç ve Bitiş Sürelerinin Hesaplanması
+                    bitis_zamanlari = [pulp.value(C[i]) for i in rota]
+                    baslangic_zamanlari = [0] + bitis_zamanlari[:-1]
+                    
+                    df_sonuc["Başlangıç Zamanı (Dk)"] = baslangic_zamanlari
+                    df_sonuc["Bitiş Zamanı (Dk)"] = bitis_zamanlari
+                    
+                    # Takvim ve Vardiya Ataması (Yeni Gece-Gündüz Düzeni)
                     def vardiya_bul(sure):
-                        if sure <= 0: return "1. Hafta", "Pazartesi", "Gündüz"
+                        if sure <= 0: return "1. Hafta", "Pazartesi", "Gece" # Gün Gece ile başlıyor
+                        
                         t = sure - 0.001 
                         hafta_no = int(t // 5340) + 1
                         hafta_ici_dk = t % 5340
@@ -102,24 +109,39 @@ if uploaded_file is not None:
                         if hafta_ici_dk < 4900:
                             gun_endeksi = int(hafta_ici_dk // 980)
                             gun_ici_dk = hafta_ici_dk % 980
-                            if gun_ici_dk < 540:
-                                vardiya = "Gündüz"
+                            
+                            # Yeni Mesai Kurgusu: İlk 440dk Gece, Sonraki 540dk Gündüz
+                            if gun_ici_dk < 440:
+                                vardiya = "Gece"
                                 gun = gunler[gun_endeksi]
                             else:
-                                vardiya = "Gece"
-                                if gun_endeksi == 4: gun = "Cumartesi (Cuma'dan bağlayan)"
-                                else: gun = gunler[gun_endeksi]
+                                vardiya = "Gündüz"
+                                gun = gunler[gun_endeksi]
                         else:
+                            # 4900 sonrası Cuma gecesinden Cumartesi sabahına sarkan vardiya
                             vardiya = "Gece"
-                            gun = "Cumartesi (Tek Gece Vardiyası)"
+                            gun = "Cumartesi (Cuma'dan bağlayan)"
+                            
                         return f"{hafta_no}. Hafta", gun, vardiya
 
-                    df_sonuc[["Planlanan Hafta", "Planlanan Gün", "Vardiya"]] = df_sonuc["Kümülatif Zaman (C_i)"].apply(
-                        lambda x: pd.Series(vardiya_bul(x))
-                    )
+                    # Başlangıç ve Bitiş için Fonksiyonu Ayrı Ayrı Uygulama
+                    baslangic_bilgileri = df_sonuc["Başlangıç Zamanı (Dk)"].apply(lambda x: pd.Series(vardiya_bul(x)))
+                    bitis_bilgileri = df_sonuc["Bitiş Zamanı (Dk)"].apply(lambda x: pd.Series(vardiya_bul(x)))
+
+                    df_sonuc["Başlama Haftası"] = baslangic_bilgileri[0]
+                    df_sonuc["Başlama Günü"] = baslangic_bilgileri[1]
+                    df_sonuc["Başlama Vardiyası"] = baslangic_bilgileri[2]
                     
-                    cols = ['Bileşen Kodu', 'Malzeme Uzun Tanımı'] + [c for c in df_sonuc.columns if c not in ['Bileşen Kodu', 'Malzeme Uzun Tanımı']]
-                    df_sonuc = df_sonuc[cols]
+                    df_sonuc["Bitiş Haftası"] = bitis_bilgileri[0]
+                    df_sonuc["Bitiş Günü"] = bitis_bilgileri[1]
+                    df_sonuc["Bitiş Vardiyası"] = bitis_bilgileri[2]
+                    
+                    # Sütunları Düzenleme (Sıralama)
+                    cols_front = ['Bileşen Kodu', 'Malzeme Uzun Tanımı']
+                    cols_middle = [c for c in df_sonuc.columns if c not in cols_front and "Başlama" not in c and "Bitiş" not in c and "Başlangıç Zamanı" not in c]
+                    cols_end = ['Başlangıç Zamanı (Dk)', 'Başlama Haftası', 'Başlama Günü', 'Başlama Vardiyası', 'Bitiş Zamanı (Dk)', 'Bitiş Haftası', 'Bitiş Günü', 'Bitiş Vardiyası']
+                    
+                    df_sonuc = df_sonuc[cols_front + cols_middle + cols_end]
 
                     # Sonucu İndirilebilir Hale Getirme
                     output = io.BytesIO()
@@ -136,7 +158,7 @@ if uploaded_file is not None:
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                     
-                    st.dataframe(df_sonuc.head(10)) # Ekranda ilk 10 satırı önizleme olarak göster
+                    st.dataframe(df_sonuc.head(10)) 
                 else:
                     st.error("Sistem geçerli bir rota bulamadı. Lütfen verilerinizi kontrol edin.")
             except Exception as e:
