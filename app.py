@@ -86,7 +86,6 @@ if uploaded_file is not None:
                     for j in V[1:]:
                         if i != j:
                             job_i, job_j = jobs[i-1], jobs[j-1]
-                            # Tel, Zone, Lamet ve Tela tamamen aynıysa (Aynı modelse) büyük olan KESİNLİKLE önce gelmeli
                             if (job_i['Tel Kalınlığı'] == job_j['Tel Kalınlığı'] and
                                 job_i['Zone Bilgisi'] == job_j['Zone Bilgisi'] and
                                 job_i['Lamet Durumu'] == job_j['Lamet Durumu'] and
@@ -113,7 +112,6 @@ if uploaded_file is not None:
                     df_sonuc = pd.DataFrame(sirali_isler)
 
                     # 7. ZAMAN, SETUP VE VARDİYA HESAPLAMALARI
-                    # Setup sürelerini açıkça sütunda göster
                     setup_süreleri = [0]
                     for idx in range(1, len(rota)):
                         onceki_is_idx = rota[idx-1] - 1
@@ -125,16 +123,13 @@ if uploaded_file is not None:
                     bitis_zamanlari = []
                     kümülatif_zaman = 0
 
-                    # Hesaplama döngüsü (Süre + Setup eklenecek)
                     for i in range(len(rota)):
                         is_suresi = sirali_isler[i]["Toplam İş Süresi (Dakika)"]
                         setup_suresi = setup_süreleri[i]
-
                         kümülatif_zaman += is_suresi + setup_suresi
                         bitis_zamanlari.append(kümülatif_zaman)
 
                     baslangic_zamanlari = [0] + bitis_zamanlari[:-1]
-
                     df_sonuc["Başlangıç Zamanı (Dk)"] = baslangic_zamanlari
                     df_sonuc["Bitiş Zamanı (Dk)"] = bitis_zamanlari
 
@@ -149,7 +144,6 @@ if uploaded_file is not None:
                         if hafta_ici_dk < 4900:
                             gun_endeksi = int(hafta_ici_dk // 980)
                             gun_ici_dk = hafta_ici_dk % 980
-
                             if gun_ici_dk < 440: return f"{hafta_no}. Hafta", gunler[gun_endeksi], "Gece"
                             else: return f"{hafta_no}. Hafta", gunler[gun_endeksi], "Gündüz"
                         else:
@@ -170,22 +164,21 @@ if uploaded_file is not None:
                     cols_front = ['Bileşen Kodu', 'Malzeme Uzun Tanımı', 'Tela Durumu']
                     cols_middle = [c for c in df_sonuc.columns if c not in cols_front and "Başlama" not in c and "Bitiş" not in c and "Başlangıç Zamanı" not in c and "Setup" not in c and "Tela Durumu" not in c]
                     cols_end = ['Önceki İşten Geçiş Süresi (Setup - Dk)', 'Başlangıç Zamanı (Dk)', 'Başlama Haftası', 'Başlama Günü', 'Başlama Vardiyası', 'Bitiş Zamanı (Dk)', 'Bitiş Haftası', 'Bitiş Günü', 'Bitiş Vardiyası']
-
                     df_sonuc = df_sonuc[cols_front + cols_middle + cols_end]
 
-                    # Excel İndirme İşlemi
-output = io.BytesIO()
-with pd.ExcelWriter(output, engine='openpyxl') as writer:
-    df_sonuc.to_excel(writer, index=False, sheet_name='Optimum_Plan')
-    
-    # GİZLİ İMZA: Excel dosyasının dijital özelliklerine adını kazıma
-    workbook = writer.book
-    workbook.properties.creator = "Abdullah Kerem Göktaş" 
-    workbook.properties.title = "Pocket Yay Çizelgeleme Motoru"
+                    # ----------------------------------------------------
+                    # EXCEL İNDİRME 
+                    # ----------------------------------------------------
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_sonuc.to_excel(writer, index=False, sheet_name='Optimum_Plan')
+                        workbook = writer.book
+                        workbook.properties.creator = "Abdullah Kerem Göktaş"
+                        workbook.properties.title = "Pocket Yay Çizelgeleme Motoru"
+                        
+                    processed_data = output.getvalue()
 
-processed_data = output.getvalue()
-
-st.success(f"Optimizasyon başarıyla tamamlandı! Toplam işlenen satır grubu: {N}")
+                    st.success(f"Optimizasyon başarıyla tamamlandı! Toplam işlenen satır grubu: {N}")
                     
                     st.download_button(
                         label="📥 Oluşturulan Planı Excel Olarak İndir",
