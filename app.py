@@ -174,12 +174,19 @@ if uploaded_file is not None:
                     df_sonuc = df_sonuc[cols_front + cols_middle + cols_end]
 
                     # Excel İndirme İşlemi
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_sonuc.to_excel(writer, index=False, sheet_name='Optimum_Plan')
-                    processed_data = output.getvalue()
+               # Excel İndirme İşlemi
+output = io.BytesIO()
+with pd.ExcelWriter(output, engine='openpyxl') as writer:
+    df_sonuc.to_excel(writer, index=False, sheet_name='Optimum_Plan')
+    
+    # GİZLİ İMZA: Excel dosyasının dijital özelliklerine adını kazıma
+    workbook = writer.book
+    workbook.properties.creator = "Abdullah Kerem Göktaş" 
+    workbook.properties.title = "Pocket Yay Çizelgeleme Motoru"
 
-                    st.success(f"Optimizasyon başarıyla tamamlandı! Toplam işlenen satır grubu: {N}")
+processed_data = output.getvalue()
+
+st.success(f"Optimizasyon başarıyla tamamlandı! Toplam işlenen satır grubu: {N}")
                     
                     st.download_button(
                         label="📥 Oluşturulan Planı Excel Olarak İndir",
