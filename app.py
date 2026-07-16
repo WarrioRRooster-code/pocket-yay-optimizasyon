@@ -174,7 +174,6 @@ if uploaded_file is not None:
                     df_sonuc = df_sonuc[cols_front + cols_middle + cols_end]
 
                     # Excel İndirme İşlemi
-               # Excel İndirme İşlemi
 output = io.BytesIO()
 with pd.ExcelWriter(output, engine='openpyxl') as writer:
     df_sonuc.to_excel(writer, index=False, sheet_name='Optimum_Plan')
