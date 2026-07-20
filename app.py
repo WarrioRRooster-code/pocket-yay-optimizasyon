@@ -75,7 +75,7 @@ with col_banner2:
     """, unsafe_allow_html=True)
     try:
         # Daha önce indirdiğiniz logo dosyasını kullanır.
-        st.image("image_222b40.png", width=180)
+        st.image("yatas_grup_logo.jpg", width=180)
     except:
         st.write("*(Logo Yüklenemedi)*")
     st.markdown("</div>", unsafe_allow_html=True)
