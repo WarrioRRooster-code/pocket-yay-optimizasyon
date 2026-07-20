@@ -1,4 +1,5 @@
 import streamlit as st
+import base64
 import pandas as pd
 import numpy as np
 import pulp
@@ -10,79 +11,101 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ----------------------------------------------------
-# 1. KURUMSAL KİMLİK & MODERN TASARIM (CUSTOM CSS)
+# 1. KURUMSAL KİMLİK & MODERN TASARIM (CUSTOM CSS & BANNER)
 # ----------------------------------------------------
 st.set_page_config(page_title="Yataş Üretim Planlama", page_icon="⚙️", layout="wide")
 
-# Modern, sade ve kurumsal görünüm için özel CSS
-st.markdown("""
+# Logoyu Base64'e çevirip doğrudan HTML içine gömmek için fonksiyon
+def get_base64_of_bin_file(bin_file):
+    try:
+        with open(bin_file, 'rb') as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except:
+        return ""
+
+# GitHub'a yüklediğin resmin adı (Değişiklik yapma, tam bu isimde olmalı)
+logo_base64 = get_base64_of_bin_file("image_222b40.png")
+
+st.markdown(f"""
     <style>
-        /* Ana arka plan ve yazı tipleri */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
-        html, body, [class*="css"] {
+        html, body, [class*="css"] {{
             font-family: 'Inter', sans-serif;
             background-color: #F8F9FA;
-        }
+        }}
+        #MainMenu {{visibility: hidden;}}
+        header {{visibility: hidden;}}
+        footer {{visibility: hidden;}}
         
-        /* Streamlit'in üst menüsünü gizle (Daha bağımsız bir uygulama hissi için) */
-        #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
+        /* Tek Parça Kusursuz Kurumsal Banner */
+        .yatas-banner {{
+            background: linear-gradient(135deg, #16365D 0%, #2A6099 100%);
+            padding: 30px 40px;
+            border-radius: 12px;
+            box-shadow: 0px 8px 20px rgba(22, 54, 93, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            margin-bottom: 30px;
+        }}
         
-        /* Kart (Box) Tasarımları */
-        div[data-testid="metric-container"] {
+        .yatas-logo-container {{
+            background-color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }}
+        
+        .yatas-logo {{
+            width: 170px;
+            height: auto;
+        }}
+        
+        .yatas-text-container h1 {{
+            font-weight: 600;
+            font-size: 28px;
+            margin: 0;
+            color: #FFFFFF;
+        }}
+        
+        .yatas-text-container p {{
+            font-weight: 300;
+            font-size: 16px;
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            color: #E2E8F0;
+        }}
+        
+        /* Metrik Kartları */
+        div[data-testid="metric-container"] {{
             background-color: #FFFFFF;
             border: 1px solid #E9ECEF;
             padding: 15px;
             border-radius: 10px;
             box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.05);
-            border-left: 5px solid #16365D; /* Yataş Laciverti dokunuş */
-        }
-        
-        /* Tepe Başlık (Banner) Tasarımı */
-        .title-box {
-            background: linear-gradient(90deg, #16365D 0%, #2A6099 100%);
-            padding: 30px;
-            border-radius: 12px;
-            color: white;
-            margin-bottom: 25px;
-            box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
+            border-left: 5px solid #16365D;
+        }}
     </style>
+
+    <div class="yatas-banner">
+        <div class="yatas-logo-container">
+            <img class="yatas-logo" src="data:image/png;base64,{logo_base64}" alt="Yataş Group Logo">
+        </div>
+        <div class="yatas-text-container">
+            <h1>Yapay Zeka Destekli Üretim Çizelgeleme Sistemi</h1>
+            <p>Pocket Yay Hatları İçin Otonom Planlama ve Kapasite Yönetimi</p>
+        </div>
+    </div>
 """, unsafe_allow_html=True)
 
-# Yataş Kurumsal Başlık Banner'ı (Logoyu Base64 ile Gömerek Kodluyoruz)
-# (Gönderdiğin Yataş logosunun Base64 kodlanmış hali)
-yatas_logo_base64 = "iVBORw0KGgoAAAANSUhEUgAAAhAAAAC0CAIAAABKcIIPAAAQAElEQVR4AexdB6ActdGekbR7d6+590K1qab3lgKhhBZ67733FlpI" # ... Kısaltılmış hali, tam şıklığı sağlamak için Base64 yerine yerel dosyadan çekmek her zaman iyidir.
-# Ancak tam Base64 verisi çok uzun olduğu için, daha önceki yaklaşımımız olan yerel dosya yöntemi daha sağlıklıdır.
 
-col_banner1, col_banner2 = st.columns([4, 1])
-
-with col_banner1:
-    st.markdown("""
-        <div style="background: linear-gradient(90deg, #16365D 0%, #2A6099 100%); padding: 30px; border-radius: 12px 0 0 12px; color: white; height: 100%;">
-            <h1 style="font-weight: 600; font-size: 28px; margin: 0; color: white;">Yapay Zeka Destekli Üretim Çizelgeleme Sistemi</h1>
-            <p style="font-weight: 300; font-size: 16px; margin-top: 5px; opacity: 0.9; color: white;">Pocket Yay Hatları İçin Otonom Planlama ve Kapasite Yönetimi</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-with col_banner2:
-    st.markdown("""
-        <div style="background: linear-gradient(90deg, #2A6099 0%, #3B75B3 100%); padding: 20px; border-radius: 0 12px 12px 0; height: 100%; display: flex; align-items: center; justify-content: center;">
-    """, unsafe_allow_html=True)
-    try:
-        # Daha önce indirdiğiniz logo dosyasını kullanır.
-        st.image("yatas_grup_logo.jpg", width=180)
-    except:
-        st.write("*(Logo Yüklenemedi)*")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# 2. Dosya Yükleme Alanı
+# ----------------------------------------------------
+# 2. DOSYA YÜKLEME ALANI
+# ----------------------------------------------------
 uploaded_file = st.file_uploader("Çalışma Verisi (Excel formatında 'Temiz' sayfasını yükleyin)", type=["xlsx"])
 
 if uploaded_file is not None:
@@ -330,7 +353,7 @@ if uploaded_file is not None:
                     st.markdown("### 📅 Haftalık ve Modellere Göre Makine Yükü")
                     
                     haftalar = sorted(df_sonuc["Başlama Haftası"].unique())
-                    tabs = st.tabs([h for h in haftalar]) # Sekmeleri oluştur
+                    tabs = st.tabs([h for h in haftalar])
                     gun_sirasi = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi (Cuma'dan bağlayan)"]
                     
                     for i, hafta in enumerate(haftalar):
