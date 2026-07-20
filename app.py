@@ -25,7 +25,7 @@ def get_base64_of_bin_file(bin_file):
         return ""
 
 # GitHub'a yüklediğin resmin adı (Değişiklik yapma, tam bu isimde olmalı)
-logo_base64 = get_base64_of_bin_file("image_222b40.png")
+logo_base64 = get_base64_of_bin_file("yatas_grup_logo.jpg")
 
 st.markdown(f"""
     <style>
