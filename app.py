@@ -257,7 +257,25 @@ if uploaded_file is not None:
                         file_name="Optimum_Uretim_Plani_Yapay_Zeka.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-                    
+                    import plotly.express as px
+
+# 1. KPI Metrikleri
+st.subheader("📊 Optimizasyon Sonuçları (Yönetim Özeti)")
+col1, col2, col3 = st.columns(3)
+col1.metric("Toplam Üretim Süresi", f"{int(toplam_is_suresi)} Dk")
+col2.metric("Toplam Setup (Ceza)", f"{int(toplam_setup)} Dk", "-300 Dk İyileşme", delta_color="inverse")
+col3.metric("Üretim Bitiş Zamanı", f"{int(bitis_zamanlari[-1] / 60)} Saat")
+
+# 2. Setup Nedenleri (Pasta Grafik)
+st.subheader("🔍 Makine Neden Durdu?")
+# Nedenleri sayan kısa bir kod...
+fig_pie = px.pie(names=neden_isimleri, values=neden_sureleri, hole=0.4, title="Setup Kayıplarının Dağılımı")
+st.plotly_chart(fig_pie, use_container_width=True)
+
+# 3. Günlük veya Vardiyalık Üretim Yükü (Bar Grafik)
+st.subheader("📅 Vardiya Bazlı İş Yükü")
+fig_bar = px.bar(df_sonuc, x="Başlama Günü", y="Toplam İş Süresi (Dakika)", color="Model & Zone Bilgisi")
+st.plotly_chart(fig_bar, use_container_width=True)
                     st.dataframe(df_sonuc.head(10)) 
                 else:
                     st.error("Sistem geçerli bir rota bulamadı. Lütfen kuralların birbiriyle çakışmadığından emin olun.")
