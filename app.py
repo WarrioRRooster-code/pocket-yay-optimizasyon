@@ -5,6 +5,7 @@ import numpy as np
 import pulp
 import io
 import re
+import math
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.chart import BarChart, Reference
 import plotly.express as px
@@ -15,16 +16,15 @@ import plotly.graph_objects as go
 # ----------------------------------------------------
 st.set_page_config(page_title="Yataş Üretim Planlama", page_icon="⚙️", layout="wide")
 
-# Logoyu Base64'e çevirip doğrudan HTML içine gömmek için fonksiyon
 def get_base64_of_bin_file(bin_file):
     try:
         with open(bin_file, 'rb') as f:
             data = f.read()
         return base64.b64encode(data).decode()
-    except:
+    except Exception as e:
         return ""
 
-# GitHub'a yüklediğin resmin adı (Değişiklik yapma, tam bu isimde olmalı)
+# Logo adının GitHub'daki adıyla aynı olduğuna dikkat et
 logo_base64 = get_base64_of_bin_file("yatas_grup_logo.jpg")
 
 st.markdown(f"""
@@ -38,7 +38,7 @@ st.markdown(f"""
         header {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         
-        /* Tek Parça Kusursuz Kurumsal Banner */
+        /* Banner Tasarımı */
         .yatas-banner {{
             background: linear-gradient(135deg, #16365D 0%, #2A6099 100%);
             padding: 30px 40px;
@@ -49,7 +49,6 @@ st.markdown(f"""
             gap: 30px;
             margin-bottom: 30px;
         }}
-        
         .yatas-logo-container {{
             background-color: white;
             padding: 15px 25px;
@@ -59,28 +58,11 @@ st.markdown(f"""
             justify-content: center;
             align-items: center;
         }}
+        .yatas-logo {{ width: 170px; height: auto; }}
+        .yatas-text-container h1 {{ font-weight: 600; font-size: 28px; margin: 0; color: #FFFFFF; }}
+        .yatas-text-container p {{ font-weight: 300; font-size: 16px; margin: 5px 0 0 0; opacity: 0.9; color: #E2E8F0; }}
         
-        .yatas-logo {{
-            width: 170px;
-            height: auto;
-        }}
-        
-        .yatas-text-container h1 {{
-            font-weight: 600;
-            font-size: 28px;
-            margin: 0;
-            color: #FFFFFF;
-        }}
-        
-        .yatas-text-container p {{
-            font-weight: 300;
-            font-size: 16px;
-            margin: 5px 0 0 0;
-            opacity: 0.9;
-            color: #E2E8F0;
-        }}
-        
-        /* Metrik Kartları */
+        /* KPI Kartları */
         div[data-testid="metric-container"] {{
             background-color: #FFFFFF;
             border: 1px solid #E9ECEF;
@@ -93,7 +75,7 @@ st.markdown(f"""
 
     <div class="yatas-banner">
         <div class="yatas-logo-container">
-            <img class="yatas-logo" src="data:image/png;base64,{logo_base64}" alt="Yataş Group Logo">
+            <img class="yatas-logo" src="data:image/jpeg;base64,{logo_base64}" alt="Yataş Group Logo">
         </div>
         <div class="yatas-text-container">
             <h1>Yapay Zeka Destekli Üretim Çizelgeleme Sistemi</h1>
@@ -102,9 +84,35 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+# ----------------------------------------------------
+# 2. STRES TESTİ VE SENARYO KONTROL PANELİ (SIDEBAR)
+# ----------------------------------------------------
+st.sidebar.header("🧪 SENARYO YÖNETİMİ")
+st.sidebar.markdown("Optimizasyon modelinin çalışacağı endüstriyel kısıtları belirleyin:")
+
+secilen_senaryo = st.sidebar.radio(
+    "Aktif Senaryo Seçimi:",
+    options=[
+        "🟢 Standart Üretim (Sabit Süreler)",
+        "🔴 Akademik: Yorulma Etkisi (Deterioration)"
+    ]
+)
+
+deterioration_rate = 0.0
+if "Yorulma Etkisi" in secilen_senaryo:
+    st.sidebar.warning("Vardiya sonuna doğru yorgunluktan dolayı setup süreleri uzayacaktır.")
+    deterioration_rate = st.sidebar.slider(
+        "Yorulma Oranı (α) Seçiniz:", 
+        min_value=0.01, 
+        max_value=0.15, 
+        value=0.05, 
+        step=0.01,
+        help="Usta her yeni makine ayarında (setup) ne kadar yavaşlayacak? (Örn: 0.05 = %5 yavaşlama)"
+    )
+    st.sidebar.info(f"Mosheiov Modeli Formülü:\n S_k = S_base * (1 + {deterioration_rate} * k)")
 
 # ----------------------------------------------------
-# 2. DOSYA YÜKLEME ALANI
+# 3. DOSYA YÜKLEME VE OPTİMİZASYON ALANI
 # ----------------------------------------------------
 uploaded_file = st.file_uploader("Çalışma Verisi (Excel formatında 'Temiz' sayfasını yükleyin)", type=["xlsx"])
 
@@ -114,9 +122,7 @@ if uploaded_file is not None:
     if st.button("🚀 Optimizasyonu Başlat"):
         with st.spinner('Matematiksel çözücü devrede. Optimum rota hesaplanıyor...'):
             try:
-                # ----------------------------------------------------
-                # VERİ OKUMA VE KURALLAR
-                # ----------------------------------------------------
+                # --- VERİ OKUMA VE KURALLAR ---
                 df = pd.read_excel(uploaded_file, sheet_name="Temiz")
                 df["Toplam İş Süresi (Dakika)"] = pd.to_numeric(df["Toplam İş Süresi (Dakika)"], errors='coerce').fillna(0)
 
@@ -178,9 +184,7 @@ if uploaded_file is not None:
                     if tela_i != tela_j: reasons.append("Tela")
                     return " + ".join(reasons) if reasons else "-"
 
-                # ----------------------------------------------------
-                # MILP MODELİ VE ÇÖZÜCÜ
-                # ----------------------------------------------------
+                # --- MILP MODELİ ---
                 prob = pulp.LpProblem("MILP_Model", pulp.LpMinimize)
                 V = list(range(N + 1))
                 x = pulp.LpVariable.dicts("x", (V, V), cat='Binary')
@@ -227,13 +231,36 @@ if uploaded_file is not None:
                     df_sonuc = pd.DataFrame(sirali_isler)
                     df_sonuc["Tespit Edilen Teller"] = df_sonuc["Kullanılan Teller"].apply(lambda x: " & ".join(x))
 
+                    # --- 4. ZAMAN, SETUP VE YORULMA (DETERIORATION) HESAPLAMALARI ---
                     setup_süreleri = [0]
                     setup_nedenleri = ["İlk İş (Kurulum)"]
+                    
+                    def get_deterioration_factor(k, rate):
+                        return 1.0 + (rate * (k - 1))
+
+                    operator_setup_sayaci = 0 
+                    
                     for idx in range(1, len(rota)):
                         o = rota[idx-1] - 1
                         s = rota[idx] - 1
-                        setup_süreleri.append(calculate_setup(jobs[o], jobs[s]))
-                        setup_nedenleri.append(get_setup_reason(jobs[o], jobs[s]))
+                        
+                        base_setup = calculate_setup(jobs[o], jobs[s])
+                        reason = get_setup_reason(jobs[o], jobs[s])
+                        
+                        if base_setup > 0:
+                            operator_setup_sayaci += 1
+                            if "Yorulma Etkisi" in secilen_senaryo:
+                                factor = get_deterioration_factor(operator_setup_sayaci, deterioration_rate)
+                                final_setup = int(round(base_setup * factor))
+                                setup_nedenleri.append(f"{reason} (Yorgunluk: {base_setup}Dk ➔ {final_setup}Dk)")
+                            else:
+                                final_setup = base_setup
+                                setup_nedenleri.append(reason)
+                                
+                            setup_süreleri.append(final_setup)
+                        else:
+                            setup_süreleri.append(0)
+                            setup_nedenleri.append("-")
 
                     df_sonuc["Önceki İşten Geçiş Süresi (Setup - Dk)"] = setup_süreleri
                     df_sonuc["Setup Nedeni"] = setup_nedenleri
@@ -247,7 +274,7 @@ if uploaded_file is not None:
                     df_sonuc["Başlangıç Zamanı (Dk)"] = [0] + bitis_zamanlari[:-1]
                     df_sonuc["Bitiş Zamanı (Dk)"] = bitis_zamanlari
 
-                    # Takvim ve Vardiya Hesaplama
+                    # Takvim ve Vardiya
                     def vardiya_bul(sure):
                         if sure <= 0: return "1. Hafta", "Pazartesi", "Gece"
                         t = sure - 0.001
@@ -273,7 +300,7 @@ if uploaded_file is not None:
                     df_sonuc = df_sonuc[cols_front + cols_middle + cols_end]
 
                     # ----------------------------------------------------
-                    # YENİ DASHBOARD & MODERN KAPASİTE GÖSTERGESİ & GANTT & SEKMELER
+                    # 5. DASHBOARD & GRAFİKLER
                     # ----------------------------------------------------
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.subheader("📊 Üretim Performans Özeti")
@@ -285,12 +312,20 @@ if uploaded_file is not None:
                     col1, col2, col3, col4 = st.columns(4)
                     col1.metric("Toplam İş Grubu", f"{N}")
                     col2.metric("Net Üretim Süresi", f"{int(toplam_is_suresi)} Dk")
-                    col3.metric("Setup (Kayıp) Süresi", f"{int(toplam_setup)} Dk", "Minimize Edildi")
+                    
+                    # Yorulma Etkisi Kaybı Gösterimi
+                    if "Yorulma Etkisi" in secilen_senaryo:
+                        orijinal_setup_toplami = sum([calculate_setup(jobs[rota[i-1]-1], jobs[rota[i]-1]) for i in range(1, len(rota))])
+                        kayip_dk = toplam_setup - orijinal_setup_toplami
+                        col3.metric("Setup Süresi (Yorgunluk Dahil)", f"{int(toplam_setup)} Dk", f"-{int(kayip_dk)} Dk Yorgunluk Gecikmesi", delta_color="inverse")
+                    else:
+                        col3.metric("Setup (Kayıp) Süresi", f"{int(toplam_setup)} Dk", "Yapay Zeka Optimize Etti")
+                        
                     col4.metric("Brüt Bitiş Süresi", f"{(toplam_zaman_dk / 60):.1f} Saat")
                     
-                    # --- SADE VE MODERN KAPASİTE GÖSTERGESİ ---
+                    # --- KAPASİTE GÖSTERGESİ ---
                     st.markdown("<br>", unsafe_allow_html=True)
-                    HAFTALIK_KAPASITE_DK = 5340 # Haftalık çalışma kapasiten
+                    HAFTALIK_KAPASITE_DK = 5340 
                     doluluk_orani = (toplam_zaman_dk / HAFTALIK_KAPASITE_DK) * 100
                     
                     if doluluk_orani <= 90:
@@ -385,16 +420,14 @@ if uploaded_file is not None:
                     st.markdown("---")
 
                     # ----------------------------------------------------
-                    # EXCEL ÇIKTISI (Grafik Gömmeli)
+                    # 6. EXCEL ÇIKTISI (Grafik Gömmeli)
                     # ----------------------------------------------------
                     df_excel = df_sonuc.drop(columns=["Gantt_Baslangic", "Gantt_Bitis"])
                     output = io.BytesIO()
                     
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        # 1. Sayfa: Plan
                         df_excel.to_excel(writer, index=False, sheet_name='Optimum_Plan')
                         
-                        # 2. Sayfa: Rapor
                         gunluk_ozet = df_excel.groupby("Başlama Günü")["Toplam İş Süresi (Dakika)"].sum().reset_index()
                         gunluk_ozet['Başlama Günü'] = pd.Categorical(gunluk_ozet['Başlama Günü'], categories=gun_sirasi, ordered=True)
                         gunluk_ozet = gunluk_ozet.sort_values('Başlama Günü')
@@ -405,7 +438,6 @@ if uploaded_file is not None:
                         worksheet_rapor = writer.sheets['Yönetim_Raporu']
                         workbook.properties.creator = "Yataş Üretim Planlama Modülü" 
                         
-                        # Boyama
                         mavi_dolgu = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid")
                         bej_dolgu = PatternFill(start_color="EAE2D0", end_color="EAE2D0", fill_type="solid")
                         cb = df_excel.columns.get_loc('Başlangıç Zamanı (Dk)') + 1
@@ -420,7 +452,6 @@ if uploaded_file is not None:
                             worksheet_plan.cell(row=row, column=cve).fill = bej_dolgu
                         worksheet_plan.auto_filter.ref = worksheet_plan.dimensions
 
-                        # Excel'e Bar Grafik Ekleme
                         chart = BarChart()
                         chart.type = "col"
                         chart.style = 10
@@ -443,7 +474,7 @@ if uploaded_file is not None:
                     st.download_button(
                         label="📥 Planı Dışa Aktar (.xlsx)",
                         data=processed_data,
-                        file_name="Yatas_Optimum_Uretim_Plani.xlsx",
+                        file_name="Yatas_Optimum_Uretim_Plani_Yorulma_Senaryolu.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 else:
